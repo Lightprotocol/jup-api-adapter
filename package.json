@@ -1,0 +1,51 @@
+{
+  "name": "@lightprotocol/jup-api-adapter",
+  "version": "0.1.0",
+  "description": "Jupiter API wrapper with support for compressed tokens",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "author": "Light Protocol Maintainers",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "test": "jest",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "yarn clean && yarn build"
+  },
+  "keywords": [
+    "solana",
+    "jupiter",
+    "zk",
+    "compression"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "@jup-ag/api": "^6.0.30",
+    "@lightprotocol/compressed-token": "^0.15.4",
+    "@lightprotocol/stateless.js": "^0.15.4",
+    "@solana/spl-token": "0.4.0",
+    "@solana/web3.js": "1.95.5",
+    "@types/node": "^22.9.2",
+    "bs58": "^6.0.0",
+    "dotenv": "^16.4.5",
+    "promise-retry": "^2.0.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "devDependencies": {
+    "@solana/spl-token": "0.4.0",
+    "@types/promise-retry": "^1.1.6",
+    "fastestsmallesttextencoderdecoder": "^1.0.22",
+    "prettier": "^3.4.1",
+    "tsup": "^8.3.5",
+    "tsx": "^4.7.1",
+    "yarn": "^1.22.22"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

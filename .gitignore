@@ -1,0 +1,7 @@
+.env
+node_modules
+src/optimist
+swap.log
+.vscode
+build
+dist
