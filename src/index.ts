@@ -1,5 +1,4 @@
 import {
-    createJupiterApiClient,
     DefaultApi,
     Configuration,
     ConfigurationParameters,
@@ -12,25 +11,28 @@ import {
     SwapPostRequest,
     SwapResponse,
     QuoteGetSwapModeEnum,
-    instanceOfQuoteResponse,
     Instruction,
 } from '@jup-ag/api';
 import {
-    AddressLookupTableAccount,
-    Connection,
+    TransactionMessage,
     PublicKey,
     TransactionInstruction,
+    VersionedTransaction,
+    AddressLookupTableAccount,
 } from '@solana/web3.js';
 import {
-    CompressedQuoteGetRequest,
     defaultQuoteGetRequest,
     TokenCompressionMode,
+    CompressedSwapInstructionsResponse,
+    defaultSwapPostRequest,
+    defaultSwapPostRequestForwarded,
 } from './defaultConfigs.ts';
 import {
     createAssociatedTokenAccountInstruction,
     createCloseAccountInstruction,
     getAssociatedTokenAddress,
     TOKEN_PROGRAM_ID,
+    createWrappedNativeAccount,
 } from '@solana/spl-token';
 import {
     CompressedTokenProgram,
@@ -39,11 +41,15 @@ import {
 } from '@lightprotocol/compressed-token';
 import {
     bn,
-    BN254,
     defaultTestStateTreeAccounts,
     parseTokenLayoutWithIdl,
     Rpc,
 } from '@lightprotocol/stateless.js';
+import {
+    LOOKUP_TABLE_ADDRESS,
+    ERROR_MESSAGES,
+    ValidationError,
+} from './constants.ts';
 
 const serializeInstruction = (
     instruction: TransactionInstruction,
@@ -70,6 +76,7 @@ const deserializeInstruction = (
         data: Buffer.from(instruction.data, 'base64'),
     });
 
+// MAX CONCURRENCY
 const setupAtaInstructions = async (
     connection: Rpc,
     userPublicKey: PublicKey,
@@ -86,21 +93,28 @@ const setupAtaInstructions = async (
         getAssociatedTokenAddress(outputMint, userPublicKey),
     ]);
 
-    if (compressionMode !== TokenCompressionMode.CompressOutput) {
-        const inputAtaInfo = await connection.getAccountInfo(inputAta);
-        if (!inputAtaInfo) {
-            instructions.push(
-                createAssociatedTokenAccountInstruction(
-                    userPublicKey,
-                    inputAta,
-                    userPublicKey,
-                    inputMint,
-                ),
-            );
-        }
+    const shouldCheckInputAta =
+        compressionMode !== TokenCompressionMode.CompressOutput;
+
+    // Get account info for ATAs
+    const [inputAtaInfo, outputAtaInfo] = await Promise.all([
+        shouldCheckInputAta ? connection.getAccountInfo(inputAta) : null,
+        connection.getAccountInfo(outputAta),
+    ]);
+
+    // Create input ATA if needed and not compressing output
+    if (shouldCheckInputAta && !inputAtaInfo) {
+        instructions.push(
+            createAssociatedTokenAccountInstruction(
+                userPublicKey,
+                inputAta,
+                userPublicKey,
+                inputMint,
+            ),
+        );
     }
 
-    const outputAtaInfo = await connection.getAccountInfo(outputAta);
+    // Create output ATA if needed
     if (!outputAtaInfo) {
         instructions.push(
             createAssociatedTokenAccountInstruction(
@@ -114,6 +128,7 @@ const setupAtaInstructions = async (
 
     return instructions;
 };
+
 const getDecompressionSetupInstructions = async (
     inputMint: PublicKey,
     inAmount: string,
@@ -161,7 +176,7 @@ const getCompressTokenOutInstruction = async (
 
 const getDecompressTokenInstruction = async (
     mint: PublicKey,
-    amount: number,
+    amount: string,
     connection: Rpc,
     owner: PublicKey,
     ata: PublicKey,
@@ -204,6 +219,7 @@ const getCleanupInstructions = async (
     userPublicKey: PublicKey,
     inputMint: PublicKey,
     outputMint: PublicKey,
+    skipUserAccountsRpcCalls: boolean,
 ): Promise<TransactionInstruction[]> => {
     const instructions: TransactionInstruction[] = [];
     const [inputAta, outputAta] = await Promise.all([
@@ -248,6 +264,69 @@ const getCleanupInstructions = async (
     return instructions;
 };
 
+async function processSwapInstructionsPostCompressed(
+    requestParameters: SwapInstructionsPostRequest,
+    compressionParameters: {
+        compressionMode: TokenCompressionMode;
+        outputStateTree?: PublicKey;
+    },
+    jupSwapInstructionsPost: SwapInstructionsResponse,
+    connection: Rpc,
+): Promise<CompressedSwapInstructionsResponse> {
+    const { swapRequest } = requestParameters;
+    const userPublicKey = new PublicKey(swapRequest.userPublicKey);
+    const inputMint = new PublicKey(swapRequest.quoteResponse.inputMint);
+    const outputMint = new PublicKey(swapRequest.quoteResponse.outputMint);
+
+    const [ataInstructions, decompressionInstructions, cleanupInstructions] =
+        await Promise.all([
+            setupAtaInstructions(
+                connection,
+                userPublicKey,
+                inputMint,
+                outputMint,
+                compressionParameters.compressionMode,
+                requestParameters.swapRequest.skipUserAccountsRpcCalls!,
+            ),
+            getDecompressionSetupInstructions(
+                inputMint,
+                requestParameters.swapRequest.quoteResponse.inAmount,
+                connection,
+                userPublicKey,
+                compressionParameters.compressionMode,
+                compressionParameters.outputStateTree ??
+                    defaultTestStateTreeAccounts().merkleTree,
+            ),
+            getCleanupInstructions(
+                compressionParameters.compressionMode,
+                userPublicKey,
+                inputMint,
+                outputMint,
+                requestParameters.swapRequest.skipUserAccountsRpcCalls!,
+            ),
+        ]);
+
+    const {
+        cleanupInstruction: _,
+        setupInstructions: __,
+        ...rest
+    } = jupSwapInstructionsPost;
+
+    return {
+        ...rest,
+        computeBudgetInstructions: [],
+        setupInstructions: [
+            ...ataInstructions,
+            ...decompressionInstructions,
+        ].map(serializeInstruction),
+        cleanupInstructions: cleanupInstructions.map(serializeInstruction),
+        addressLookupTableAddresses: [
+            ...jupSwapInstructionsPost.addressLookupTableAddresses,
+            DefaultApiAdapter.LIGHT_LUT,
+        ],
+    };
+}
+
 export async function createJupiterApiAdapterClient(
     connection: Rpc,
     config?: ConfigurationParameters,
@@ -257,6 +336,7 @@ export async function createJupiterApiAdapterClient(
 
 export class DefaultApiAdapter extends DefaultApi {
     private connection: Rpc;
+    static readonly LIGHT_LUT = LOOKUP_TABLE_ADDRESS;
 
     constructor(config: Configuration, connection: Rpc) {
         super(config);
@@ -274,11 +354,14 @@ export class DefaultApiAdapter extends DefaultApi {
         } = params;
 
         if (swapMode !== QuoteGetSwapModeEnum.ExactIn) {
-            throw new Error('Only ExactIn swap mode is supported');
+            throw new ValidationError('swapMode', ERROR_MESSAGES.EXACT_IN_ONLY);
         }
 
         if (asLegacyTransaction) {
-            throw new Error('Legacy transactions are not supported');
+            throw new ValidationError(
+                'asLegacyTransaction',
+                ERROR_MESSAGES.LEGACY_TRANSACTION,
+            );
         }
 
         return {
@@ -294,10 +377,72 @@ export class DefaultApiAdapter extends DefaultApi {
         };
     }
 
+    private validateSwapPostParams(
+        params: SwapPostRequest | SwapInstructionsPostRequest,
+        compressionMode: TokenCompressionMode,
+    ): SwapPostRequest {
+        // we always wrap/unwrap sol if its used
+        if (!params.swapRequest.wrapAndUnwrapSol) {
+            throw new ValidationError(
+                'wrapAndUnwrapSol',
+                ERROR_MESSAGES.WRAP_UNWRAP_SOL,
+            );
+        }
+        if (params.swapRequest.skipUserAccountsRpcCalls) {
+            throw new ValidationError(
+                'skipUserAccountsRpcCalls',
+                ERROR_MESSAGES.SKIP_USER_ACCOUNTS_RPC_CALLS,
+            );
+        }
+        if (params.swapRequest.asLegacyTransaction) {
+            throw new ValidationError(
+                'asLegacyTransaction',
+                ERROR_MESSAGES.LEGACY_TRANSACTION,
+            );
+        }
+        if (params.swapRequest.allowOptimizedWrappedSolTokenAccount) {
+            throw new ValidationError(
+                'allowOptimizedWrappedSolTokenAccount',
+                ERROR_MESSAGES.ALLOW_OPTIMIZED_WRAPPED_SOL_TOKEN_ACCOUNT,
+            );
+        }
+        if (params.swapRequest.useTokenLedger) {
+            throw new ValidationError(
+                'useTokenLedger',
+                ERROR_MESSAGES.USE_TOKEN_LEDGER,
+            );
+        }
+        if (
+            params.swapRequest.destinationTokenAccount &&
+            compressionMode !== TokenCompressionMode.DecompressInput
+        ) {
+            throw new ValidationError(
+                'destinationTokenAccount',
+                ERROR_MESSAGES.DESTINATION_TOKEN_ACCOUNT,
+            );
+        }
+        return {
+            swapRequest: {
+                ...params.swapRequest,
+                dynamicComputeUnitLimit:
+                    params.swapRequest.dynamicComputeUnitLimit ??
+                    defaultSwapPostRequest.dynamicComputeUnitLimit,
+                // must be enforced
+                skipUserAccountsRpcCalls:
+                    defaultSwapPostRequest.skipUserAccountsRpcCalls,
+                wrapAndUnwrapSol: defaultSwapPostRequest.wrapAndUnwrapSol,
+                allowOptimizedWrappedSolTokenAccount:
+                    defaultSwapPostRequest.allowOptimizedWrappedSolTokenAccount,
+                asLegacyTransaction: defaultSwapPostRequest.asLegacyTransaction,
+            },
+        };
+    }
+
     private validateCompressionMode(mode: TokenCompressionMode): void {
         if (mode !== TokenCompressionMode.DecompressInput) {
-            throw new Error(
-                `Compression mode: ${mode} not supported yet. Reach out to support@lightprotocol.com for an ETA.`,
+            throw new ValidationError(
+                'compressionMode',
+                ERROR_MESSAGES.UNSUPPORTED_COMPRESSION_MODE(mode),
             );
         }
     }
@@ -329,90 +474,170 @@ export class DefaultApiAdapter extends DefaultApi {
             outputStateTree?: PublicKey;
         },
         initOverrides?: RequestInit | InitOverrideFunction,
-    ): Promise<
-        Omit<SwapInstructionsResponse, 'cleanupInstruction'> & {
-            cleanupInstructions: Array<Instruction>;
-        }
-    > {
+    ): Promise<CompressedSwapInstructionsResponse> {
         this.validateCompressionMode(compressionParameters.compressionMode);
+        const validatedRequestParams = this.validateSwapPostParams(
+            requestParameters,
+            compressionParameters.compressionMode,
+        );
 
-        const { swapRequest } = requestParameters;
-        const userPublicKey = new PublicKey(swapRequest.userPublicKey);
-        const inputMint = new PublicKey(swapRequest.quoteResponse.inputMint);
-        const outputMint = new PublicKey(swapRequest.quoteResponse.outputMint);
-
-        // TODO: override params...
-
-        const [
-            ataInstructions,
-            decompressionInstructions,
-            cleanupInstructions,
+        const jupSwapInstructionsPost = await super.swapInstructionsPost(
+            validatedRequestParams,
+            initOverrides,
+        );
+        return processSwapInstructionsPostCompressed(
+            validatedRequestParams,
+            compressionParameters,
             jupSwapInstructionsPost,
-        ] = await Promise.all([
-            setupAtaInstructions(
-                this.connection,
-                userPublicKey,
-                inputMint,
-                outputMint,
-                compressionParameters.compressionMode,
-                swapRequest.skipUserAccountsRpcCalls,
-            ),
-            getDecompressionSetupInstructions(
-                inputMint,
-                requestParameters.swapRequest.quoteResponse.inAmount,
-                this.connection,
-                userPublicKey,
-                compressionParameters.compressionMode,
-                compressionParameters.outputStateTree ??
-                    defaultTestStateTreeAccounts().merkleTree,
-            ),
-            getCleanupInstructions(
-                compressionParameters.compressionMode,
-                userPublicKey,
-                inputMint,
-                outputMint,
-            ),
-            super.swapInstructionsPost(requestParameters, initOverrides),
-        ]);
-
-        const {
-            cleanupInstruction: _,
-            setupInstructions: __,
-            ...rest
-        } = jupSwapInstructionsPost;
-
-        return {
-            ...rest,
-            setupInstructions: [
-                ...ataInstructions,
-                ...decompressionInstructions,
-            ].map(serializeInstruction),
-            cleanupInstructions: cleanupInstructions.map(serializeInstruction),
-            addressLookupTableAddresses: [
-                ...jupSwapInstructionsPost.addressLookupTableAddresses,
-                '9NYFyEqPkyXUhkerbGHXUXkvb4qpzeEdHuGpgbgpH1NJ',
-            ],
-        };
+            this.connection,
+        );
     }
 
     async swapInstructionsPostRawCompressed(
         requestParameters: SwapInstructionsPostRequest,
+        compressionParameters: {
+            compressionMode: TokenCompressionMode;
+            outputStateTree?: PublicKey;
+        },
         initOverrides?: RequestInit | InitOverrideFunction,
-    ): Promise<ApiResponse<SwapInstructionsResponse>> {
-        return super.swapInstructionsPostRaw(requestParameters, initOverrides);
+    ): Promise<ApiResponse<CompressedSwapInstructionsResponse>> {
+        this.validateCompressionMode(compressionParameters.compressionMode);
+        const response = await super.swapInstructionsPostRaw(
+            requestParameters,
+            initOverrides,
+        );
+        const processedResponse = await processSwapInstructionsPostCompressed(
+            requestParameters,
+            compressionParameters,
+            await response.value(),
+            this.connection,
+        );
+        return {
+            raw: response.raw,
+            value: () => Promise.resolve(processedResponse),
+        };
     }
 
     async swapPostCompressed(
         requestParameters: SwapPostRequest,
+        compressionParameters: {
+            compressionMode: TokenCompressionMode;
+            outputStateTree?: PublicKey;
+        },
         initOverrides?: RequestInit | InitOverrideFunction,
     ): Promise<SwapResponse> {
-        return super.swapPost(requestParameters, initOverrides);
+        const [jupiterSwapResponse, compressedInstructions] = await Promise.all(
+            [
+                super.swapPost(requestParameters, initOverrides),
+                this.swapInstructionsPostCompressed(requestParameters, {
+                    compressionMode: compressionParameters.compressionMode,
+                    outputStateTree:
+                        compressionParameters.outputStateTree ??
+                        defaultTestStateTreeAccounts().merkleTree,
+                }),
+            ],
+        );
+
+        return processSwapPostCompressed(
+            requestParameters,
+            jupiterSwapResponse,
+            compressedInstructions,
+            this.connection,
+        );
     }
 
     async swapPostRawCompressed(
         requestParameters: SwapPostRequest,
+        compressionParameters: {
+            compressionMode: TokenCompressionMode;
+            outputStateTree?: PublicKey;
+        },
         initOverrides?: RequestInit | InitOverrideFunction,
     ): Promise<ApiResponse<SwapResponse>> {
-        return super.swapPostRaw(requestParameters, initOverrides);
+        this.validateCompressionMode(compressionParameters.compressionMode);
+        const [response, compressedInstructions] = await Promise.all([
+            super.swapPostRaw(requestParameters, initOverrides),
+            this.swapInstructionsPostCompressed(
+                requestParameters,
+                compressionParameters,
+            ),
+        ]);
+
+        const processedResponse = await processSwapPostCompressed(
+            requestParameters,
+            await response.value(),
+            compressedInstructions,
+            this.connection,
+        );
+
+        return {
+            raw: response.raw,
+            value: () => Promise.resolve(processedResponse),
+        };
     }
+}
+
+const getAddressLookupTableAccounts = async (
+    keys: string[],
+    connection: Rpc,
+): Promise<AddressLookupTableAccount[]> => {
+    const addressLookupTableAccountInfos =
+        await connection.getMultipleAccountsInfo(
+            keys.map(key => new PublicKey(key)),
+        );
+
+    return addressLookupTableAccountInfos.reduce((acc, accountInfo, index) => {
+        const addressLookupTableAddress = keys[index];
+        if (accountInfo) {
+            const addressLookupTableAccount = new AddressLookupTableAccount({
+                key: new PublicKey(addressLookupTableAddress),
+                state: AddressLookupTableAccount.deserialize(accountInfo.data),
+            });
+            acc.push(addressLookupTableAccount);
+        }
+
+        return acc;
+    }, new Array<AddressLookupTableAccount>());
+};
+
+async function processSwapPostCompressed(
+    requestParameters: SwapPostRequest,
+    jupiterSwapResponse: SwapResponse,
+    compressedInstructions: CompressedSwapInstructionsResponse,
+    connection: Rpc,
+): Promise<SwapResponse> {
+    const {
+        computeBudgetInstructions,
+        setupInstructions,
+        swapInstruction,
+        cleanupInstructions,
+        addressLookupTableAddresses,
+    } = compressedInstructions;
+
+    const instructions = [
+        ...computeBudgetInstructions.map(deserializeInstruction),
+        ...setupInstructions.map(deserializeInstruction),
+        deserializeInstruction(swapInstruction),
+        ...cleanupInstructions.map(deserializeInstruction),
+    ];
+
+    const lookupTables = await getAddressLookupTableAccounts(
+        addressLookupTableAddresses,
+        connection,
+    );
+
+    const messageV0 = new TransactionMessage({
+        payerKey: new PublicKey(requestParameters.swapRequest.userPublicKey),
+        recentBlockhash: VersionedTransaction.deserialize(
+            Buffer.from(jupiterSwapResponse.swapTransaction, 'base64'),
+        ).message.recentBlockhash,
+        instructions,
+    }).compileToV0Message(lookupTables);
+
+    return {
+        ...jupiterSwapResponse,
+        swapTransaction: Buffer.from(
+            new VersionedTransaction(messageV0).serialize(),
+        ).toString('base64'),
+    };
 }

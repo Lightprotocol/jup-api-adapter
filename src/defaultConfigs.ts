@@ -1,8 +1,17 @@
 import {
+    Instruction,
     QuoteGetRequest,
     QuoteGetSwapModeEnum,
+    SwapInstructionsResponse,
     SwapPostRequest,
 } from '@jup-ag/api';
+
+export type CompressedSwapInstructionsResponse = Omit<
+    SwapInstructionsResponse,
+    'cleanupInstruction'
+> & {
+    cleanupInstructions: Array<Instruction>;
+};
 
 export interface DefaultQuoteGetRequestOverrides {
     swapMode: QuoteGetSwapModeEnum;
@@ -22,6 +31,7 @@ export interface DefaultSwapPostRequestOverrides {
     allowOptimizedWrappedSolTokenAccount: boolean;
     asLegacyTransaction: boolean;
 }
+
 /**
  * Recommended overrides for the quote request. Manual overrides may lead to
  * unexpected behavior when used in conjunction with compressed instructions.
@@ -44,6 +54,7 @@ export const defaultSwapPostRequest: DefaultSwapPostRequestOverrides = {
     allowOptimizedWrappedSolTokenAccount: false,
     asLegacyTransaction: false,
 };
+
 /**
  * Specifies how token compression should be handled during swaps.
  *
