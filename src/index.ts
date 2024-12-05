@@ -19,20 +19,20 @@ import {
     TransactionInstruction,
     VersionedTransaction,
     AddressLookupTableAccount,
+    ComputeBudgetProgram,
+    ComputeBudgetInstruction,
 } from '@solana/web3.js';
 import {
     defaultQuoteGetRequest,
     TokenCompressionMode,
     CompressedSwapInstructionsResponse,
     defaultSwapPostRequest,
-    defaultSwapPostRequestForwarded,
 } from './defaultConfigs.ts';
 import {
     createAssociatedTokenAccountInstruction,
     createCloseAccountInstruction,
     getAssociatedTokenAddress,
     TOKEN_PROGRAM_ID,
-    createWrappedNativeAccount,
 } from '@solana/spl-token';
 import {
     CompressedTokenProgram,
@@ -214,6 +214,38 @@ const getDecompressTokenInstruction = async (
     });
 };
 
+const getUpdatedComputeBudgetInstructions = (
+    computeBudgetInstructions: Instruction[],
+    compressionMode: TokenCompressionMode,
+) => {
+    const [unitLimitInstruction, unitPriceInstruction] =
+        computeBudgetInstructions;
+
+    const baseUnits = ComputeBudgetInstruction.decodeSetComputeUnitLimit(
+        deserializeInstruction(unitLimitInstruction),
+    ).units;
+
+    const bufferAmount =
+        compressionMode === TokenCompressionMode.DecompressInput ? 300_000 : 0;
+
+    const newUnitLimit = ComputeBudgetProgram.setComputeUnitLimit({
+        units: Math.min(baseUnits + bufferAmount, 1_400_000),
+    });
+
+    const priceParams = ComputeBudgetInstruction.decodeSetComputeUnitPrice(
+        deserializeInstruction(unitPriceInstruction),
+    );
+
+    const newUnitPrice = ComputeBudgetProgram.setComputeUnitPrice({
+        microLamports: priceParams.microLamports,
+    });
+
+    return [
+        serializeInstruction(newUnitLimit),
+        serializeInstruction(newUnitPrice),
+    ];
+};
+
 const getCleanupInstructions = async (
     compressionMode: TokenCompressionMode,
     userPublicKey: PublicKey,
@@ -314,7 +346,10 @@ async function processSwapInstructionsPostCompressed(
 
     return {
         ...rest,
-        computeBudgetInstructions: [],
+        computeBudgetInstructions: getUpdatedComputeBudgetInstructions(
+            rest.computeBudgetInstructions,
+            compressionParameters.compressionMode,
+        ),
         setupInstructions: [
             ...ataInstructions,
             ...decompressionInstructions,
@@ -419,6 +454,18 @@ export class DefaultApiAdapter extends DefaultApi {
             throw new ValidationError(
                 'destinationTokenAccount',
                 ERROR_MESSAGES.DESTINATION_TOKEN_ACCOUNT,
+            );
+        }
+        if (params.swapRequest.dynamicComputeUnitLimit) {
+            throw new ValidationError(
+                'dynamicComputeUnitLimit',
+                ERROR_MESSAGES.DYNAMIC_COMPUTE_UNIT_LIMIT,
+            );
+        }
+        if (params.swapRequest.prioritizationFeeLamports) {
+            throw new ValidationError(
+                'prioritizationFeeLamports',
+                ERROR_MESSAGES.PRIORITIZATION_FEE_LAMPORTS,
             );
         }
         return {

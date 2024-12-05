@@ -3,6 +3,9 @@ export const LOOKUP_TABLE_ADDRESS =
 
 export const ERROR_MESSAGES = {
     LEGACY_TRANSACTION: 'Legacy transactions are not supported',
+    DYNAMIC_COMPUTE_UNIT_LIMIT: 'dynamicComputeUnitLimit is not supported yet.',
+    PRIORITIZATION_FEE_LAMPORTS:
+        'prioritizationFeeLamports is not supported yet. Use computeUnitPriceMicroLamports instead.',
     USE_TOKEN_LEDGER: 'useTokenLedger is not supported yet.',
     DESTINATION_TOKEN_ACCOUNT:
         'destinationTokenAccount is not supported when also compressing token output',
