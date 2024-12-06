@@ -6,6 +6,7 @@ import {
     SwapPostRequest,
 } from '@jup-ag/api';
 
+
 export type CompressedSwapInstructionsResponse = Omit<
     SwapInstructionsResponse,
     'cleanupInstruction'
@@ -71,12 +72,4 @@ export enum TokenCompressionMode {
     DecompressInput = 'decompressInput',
     CompressOutput = 'compressOutput',
     DecompressAndCompress = 'decompressAndCompress',
-}
-
-export interface CompressedQuoteGetRequest extends QuoteGetRequest {
-    compressionMode?: TokenCompressionMode;
-}
-
-export interface CompressedSwapPostRequest extends SwapPostRequest {
-    compressionMode?: TokenCompressionMode;
 }
