@@ -1,6 +1,5 @@
 import { Instruction } from '@jup-ag/api';
 import {
-    TransactionMessage,
     PublicKey,
     TransactionInstruction,
     ComputeBudgetProgram,
@@ -143,7 +142,7 @@ export const getCompressTokenOutInstruction = async (
     return await CompressedTokenProgram.compressSplTokenAccount(param);
 };
 
-export const getDecompressTokenInstruction = async (
+const getDecompressTokenInstruction = async (
     mint: PublicKey,
     amount: string,
     connection: Rpc,

@@ -35,10 +35,7 @@ yarn add @lightprotocol/jup-api-adapter
     - ComputeBudgetInstructions are mutated to reflect higher cu usage. (PrioritizationFee lamports are not supported yet. Use computeUnitPriceMicroLamports instead.)
     - `addressLookupTableAddresses` is extended with `LIGHT_LUT`.
     - `setupInstructions` and `closeInstructions` are extended with
-        - `createTokenInAtaIx`
-        - `createTokenOutAtaIx`
-        - `decompressTokenInIx`
-        - `compressTokenOutIx`
-        - `closeTokenInAtaIx`
-        - `closeTokenOutAtaIx`
+        - `getCreateAtaInstructions` (tokenIn, tokenOut)
+        - `getDecompressionSetupInstructions` (tokenIn, tokenOut)
+        - `getCleanupInstructions` (tokenIn, tokenOut)
           ... depending on the selected `compressionMode`.
