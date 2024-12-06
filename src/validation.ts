@@ -27,11 +27,11 @@ export function validateQuoteGetParams(
         ...rest
     } = params;
 
-    if (swapMode !== QuoteGetSwapModeEnum.ExactIn) {
+    if (swapMode !== undefined && swapMode !== QuoteGetSwapModeEnum.ExactIn) {
         throw new ValidationError('swapMode', ERROR_MESSAGES.EXACT_IN_ONLY);
     }
 
-    if (asLegacyTransaction) {
+    if (asLegacyTransaction === true) {
         throw new ValidationError(
             'asLegacyTransaction',
             ERROR_MESSAGES.LEGACY_TRANSACTION,
@@ -40,12 +40,18 @@ export function validateQuoteGetParams(
 
     return {
         ...rest,
-        maxAccounts: maxAccounts ?? defaultQuoteGetRequest.maxAccounts,
+        maxAccounts:
+            maxAccounts !== undefined
+                ? maxAccounts
+                : defaultQuoteGetRequest.maxAccounts,
         onlyDirectRoutes:
-            onlyDirectRoutes ?? defaultQuoteGetRequest.onlyDirectRoutes,
+            onlyDirectRoutes !== undefined
+                ? onlyDirectRoutes
+                : defaultQuoteGetRequest.onlyDirectRoutes,
         restrictIntermediateTokens:
-            restrictIntermediateTokens ??
-            defaultQuoteGetRequest.restrictIntermediateTokens,
+            restrictIntermediateTokens !== undefined
+                ? restrictIntermediateTokens
+                : defaultQuoteGetRequest.restrictIntermediateTokens,
         swapMode: defaultQuoteGetRequest.swapMode,
         asLegacyTransaction: defaultQuoteGetRequest.asLegacyTransaction,
     };
@@ -55,39 +61,52 @@ export function validateSwapPostParams(
     params: SwapPostRequest,
     compressionMode: TokenCompressionMode,
 ): SwapPostRequest {
+    const {
+        wrapAndUnwrapSol,
+        skipUserAccountsRpcCalls,
+        asLegacyTransaction,
+        allowOptimizedWrappedSolTokenAccount,
+        useTokenLedger,
+        destinationTokenAccount,
+        dynamicComputeUnitLimit,
+        prioritizationFeeLamports,
+    } = params.swapRequest;
     // we always wrap/unwrap sol if its used
-    if (!params.swapRequest.wrapAndUnwrapSol) {
+    if (wrapAndUnwrapSol !== undefined && !wrapAndUnwrapSol) {
         throw new ValidationError(
             'wrapAndUnwrapSol',
             ERROR_MESSAGES.WRAP_UNWRAP_SOL,
         );
     }
-    if (params.swapRequest.skipUserAccountsRpcCalls) {
+    if (skipUserAccountsRpcCalls !== undefined && skipUserAccountsRpcCalls) {
         throw new ValidationError(
             'skipUserAccountsRpcCalls',
             ERROR_MESSAGES.SKIP_USER_ACCOUNTS_RPC_CALLS,
         );
     }
-    if (params.swapRequest.asLegacyTransaction) {
+    if (asLegacyTransaction !== undefined && asLegacyTransaction) {
         throw new ValidationError(
             'asLegacyTransaction',
             ERROR_MESSAGES.LEGACY_TRANSACTION,
         );
     }
-    if (params.swapRequest.allowOptimizedWrappedSolTokenAccount) {
+    if (
+        allowOptimizedWrappedSolTokenAccount !== undefined &&
+        allowOptimizedWrappedSolTokenAccount
+    ) {
         throw new ValidationError(
             'allowOptimizedWrappedSolTokenAccount',
             ERROR_MESSAGES.ALLOW_OPTIMIZED_WRAPPED_SOL_TOKEN_ACCOUNT,
         );
     }
-    if (params.swapRequest.useTokenLedger) {
+    if (useTokenLedger !== undefined && useTokenLedger) {
         throw new ValidationError(
             'useTokenLedger',
             ERROR_MESSAGES.USE_TOKEN_LEDGER,
         );
     }
     if (
-        params.swapRequest.destinationTokenAccount &&
+        destinationTokenAccount !== undefined &&
         compressionMode !== TokenCompressionMode.DecompressInput
     ) {
         throw new ValidationError(
@@ -95,13 +114,13 @@ export function validateSwapPostParams(
             ERROR_MESSAGES.DESTINATION_TOKEN_ACCOUNT,
         );
     }
-    if (params.swapRequest.dynamicComputeUnitLimit) {
+    if (dynamicComputeUnitLimit !== undefined && dynamicComputeUnitLimit) {
         throw new ValidationError(
             'dynamicComputeUnitLimit',
             ERROR_MESSAGES.DYNAMIC_COMPUTE_UNIT_LIMIT,
         );
     }
-    if (params.swapRequest.prioritizationFeeLamports) {
+    if (prioritizationFeeLamports !== undefined && prioritizationFeeLamports) {
         throw new ValidationError(
             'prioritizationFeeLamports',
             ERROR_MESSAGES.PRIORITIZATION_FEE_LAMPORTS,

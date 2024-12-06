@@ -5,7 +5,7 @@ import {
     SwapInstructionsResponse,
     SwapPostRequest,
 } from '@jup-ag/api';
-
+import { PublicKey } from '@solana/web3.js';
 
 export type CompressedSwapInstructionsResponse = Omit<
     SwapInstructionsResponse,
@@ -26,11 +26,14 @@ export interface DefaultQuoteGetRequestOverrides {
  * unexpected behavior when used in conjunction with compressed instructions.
  */
 export interface DefaultSwapPostRequestOverrides {
-    skipUserAccountsRpcCalls: boolean;
-    dynamicComputeUnitLimit: boolean;
     wrapAndUnwrapSol: boolean;
-    allowOptimizedWrappedSolTokenAccount: boolean;
+    skipUserAccountsRpcCalls: boolean;
     asLegacyTransaction: boolean;
+    allowOptimizedWrappedSolTokenAccount: boolean;
+    useTokenLedger: boolean;
+    destinationTokenAccount: PublicKey | undefined;
+    dynamicComputeUnitLimit: boolean;
+    prioritizationFeeLamports: boolean;
 }
 
 /**
@@ -49,11 +52,14 @@ export const defaultQuoteGetRequest: DefaultQuoteGetRequestOverrides = {
  * unexpected behavior when used in conjunction with compressed instructions.
  */
 export const defaultSwapPostRequest: DefaultSwapPostRequestOverrides = {
-    skipUserAccountsRpcCalls: true,
-    dynamicComputeUnitLimit: false,
     wrapAndUnwrapSol: false,
-    allowOptimizedWrappedSolTokenAccount: false,
+    skipUserAccountsRpcCalls: true,
     asLegacyTransaction: false,
+    allowOptimizedWrappedSolTokenAccount: false,
+    useTokenLedger: false,
+    destinationTokenAccount: undefined,
+    dynamicComputeUnitLimit: false,
+    prioritizationFeeLamports: false,
 };
 
 /**
