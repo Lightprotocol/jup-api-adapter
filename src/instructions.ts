@@ -1,4 +1,4 @@
-import { Instruction } from '@jup-ag/api';
+import { instanceOfInstruction, Instruction } from '@jup-ag/api';
 import {
     PublicKey,
     TransactionInstruction,
@@ -19,17 +19,36 @@ import {
 } from '@lightprotocol/compressed-token';
 import { bn, parseTokenLayoutWithIdl, Rpc } from '@lightprotocol/stateless.js';
 
+const isInstanceOfInstruction = (instruction: any): boolean => {
+    if (
+        !instruction?.programId ||
+        !(instruction.programId instanceof PublicKey)
+    ) {
+        throw new Error('Invalid program id');
+    }
+    if (!Array.isArray(instruction.keys)) {
+        throw new Error('Invalid keys array');
+    }
+    if (!instruction.data) {
+        throw new Error('Invalid instruction data');
+    }
+    return true;
+};
 export const serializeInstruction = (
     instruction: TransactionInstruction,
-): Instruction => ({
-    programId: instruction.programId.toBase58(),
-    accounts: instruction.keys.map(key => ({
-        pubkey: key.pubkey.toBase58(),
-        isSigner: key.isSigner,
-        isWritable: key.isWritable,
-    })),
-    data: Buffer.from(instruction.data).toString('base64'),
-});
+): Instruction => {
+    isInstanceOfInstruction(instruction);
+
+    return {
+        programId: instruction.programId.toBase58(),
+        accounts: instruction.keys.map(key => ({
+            pubkey: key.pubkey.toBase58(),
+            isSigner: key.isSigner,
+            isWritable: key.isWritable,
+        })),
+        data: Buffer.from(instruction.data).toString('base64'),
+    };
+};
 
 export const deserializeInstruction = (
     instruction: Instruction,
@@ -186,9 +205,13 @@ export const getUpdatedComputeBudgetInstructions = (
     computeBudgetInstructions: Instruction[],
     compressionMode: TokenCompressionMode,
 ) => {
+    if (computeBudgetInstructions.length < 2) {
+        throw new Error('Missing compute budget instructions');
+    }
     const [unitLimitInstruction, unitPriceInstruction] =
         computeBudgetInstructions;
 
+    // Handle unit limit
     const baseUnits = ComputeBudgetInstruction.decodeSetComputeUnitLimit(
         deserializeInstruction(unitLimitInstruction),
     ).units;
@@ -200,12 +223,13 @@ export const getUpdatedComputeBudgetInstructions = (
         units: Math.min(baseUnits + bufferAmount, 1_400_000),
     });
 
+    // Handle unit price - preserve BigInt
     const priceParams = ComputeBudgetInstruction.decodeSetComputeUnitPrice(
         deserializeInstruction(unitPriceInstruction),
     );
 
     const newUnitPrice = ComputeBudgetProgram.setComputeUnitPrice({
-        microLamports: priceParams.microLamports,
+        microLamports: priceParams.microLamports, // Keep as BigInt
     });
 
     return [
@@ -239,6 +263,8 @@ export const getCleanupInstructions = async (
                 userPublicKey,
             ),
         );
+    } else if (compressionMode !== TokenCompressionMode.CompressOutput) {
+        throw new Error('Invalid compression mode');
     }
     return instructions;
 };

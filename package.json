@@ -11,7 +11,7 @@
   ],
   "scripts": {
     "build": "tsup",
-    "test": "vitest --run",
+    "test": "vitest --run --reporter=verbose",
     "clean": "rm -rf dist",
     "prepublishOnly": "yarn clean && yarn build"
   },

@@ -51,8 +51,8 @@ describe('validateCompressionMode', () => {
 
 describe('validateQuoteGetParams', () => {
     const validParams = {
-        inputMint: 'mint1',
-        outputMint: 'mint2',
+        inputMint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+        outputMint: 'So11111111111111111111111111111111111111112',
         amount: 1000,
         swapMode: QuoteGetSwapModeEnum.ExactIn,
     };
@@ -77,8 +77,8 @@ describe('validateSwapPostParams', () => {
     const mockQuoteResponse: QuoteResponse = {
         routePlan: [],
         swapMode: QuoteGetSwapModeEnum.ExactIn,
-        inputMint: 'input-mint',
-        outputMint: 'output-mint',
+        inputMint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+        outputMint: 'So11111111111111111111111111111111111111112',
         inAmount: '1000',
         outAmount: '900',
         otherAmountThreshold: '890',
