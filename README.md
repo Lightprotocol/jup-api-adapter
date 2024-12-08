@@ -34,7 +34,7 @@ const quote = await client.quoteGetCompressed(
     TokenCompressionMode.DecompressInput,
 );
 
-// Get Swap TX
+// Get Swap tx
 const swapTx = await client.swapPostCompressed(
     {
         swapRequest: {
@@ -75,9 +75,14 @@ Extends `DefaultApi` class with endpoints:
 - `compressionMode` must be one of `DecompressInput`, `DecompressAndCompress`, `CompressOutput`.
 
 - Instructions
-    - ComputeBudgetInstructions are mutated to reflect higher cu usage. (PrioritizationFee lamports are not supported yet. Use computeUnitPriceMicroLamports instead.)
-    - `addressLookupTableAddresses` is extended with `LIGHT_LUT`.
-    - `setupInstructions` and `closeInstructions` are extended with
+    - mutates `ComputeBudgetInstructions` to reflect higher cu usage. (`PrioritizationFeeLamports` are not supported yet. Use `computeUnitPriceMicroLamports` instead.)
+    - extends `addressLookupTableAddresses` with a lookup table for [Light Protocol](https://www.zkcompression.com/developers/protocol-addresses-and-urls#lookup-tables).
+    - extends `setupInstructions` and `closeInstructions` with
         - `getCreateAtaInstructions` (tokenIn, tokenOut)
         - `getDecompressionSetupInstructions` (tokenIn, tokenOut)
         - `getCleanupInstructions` (tokenIn, tokenOut)
+
+
+## Notes
+
+- No safeguards added. Use at your own risk.
