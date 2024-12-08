@@ -11,45 +11,42 @@ yarn add @lightprotocol/jup-api-adapter
 ## Usage
 
 ```typescript
-import {
-    createJupiterApiAdapterClient,
-    TokenCompressionMode,
-} from '@lightprotocol/jup-api-adapter';
-import { Rpc } from '@lightprotocol/stateless.js';
+import { VersionedTransaction } from '@solana/web3.js';
+import { createRpc } from '@lightprotocol/stateless.js';
+import { createJupiterApiAdapterClient, TokenCompressionMode } from '@lightprotocol/jup-api-adapter';
 
-// Init with RPC that supports compression
-const RPC_URL = 'https://mainnet.helius-rpc.com?api-key=<your-api-key>';
-const COMPRESSION_URL = RPC_URL;
-const PROVER_URL = RPC_URL;
-const connection = new Rpc(RPC_URL, COMPRESSION_URL, PROVER_URL);
-const client = await createJupiterApiAdapterClient(connection);
+// Create RPC connection with compression support
+const connection = createRpc(RPC_URL, COMPRESSION_URL, COMPRESSION_URL);
 
-// Get quote for compressed tokens
-const quote = await client.quoteGetCompressed(
-    {
-        inputMint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-        outputMint: 'So11111111111111111111111111111111111111112',
-        amount: 42,
-    },
-    TokenCompressionMode.DecompressInput,
-);
+// Initialize Jupiter API Adapter client
+const jupiterApi = await createJupiterApiAdapterClient(connection);
 
-// Get Swap tx
-const swapTx = await client.swapPostCompressed(
-    {
-        swapRequest: {
-            userPublicKey: 'your-pubkey',
-            quoteResponse: quote,
-        },
-    },
-    {
-        compressionMode: TokenCompressionMode.DecompressInput,
-    },
-);
+// Get quote
+const quote = await jupiterApi.quoteGetCompressed({
+    inputMint: INPUT_MINT.toBase58(),
+    outputMint: OUTPUT_MINT.toBase58(),
+    amount: AMOUNT,
+    onlyDirectRoutes: true,
+    slippageBps: 500,
+}, TokenCompressionMode.DecompressInput);
 
-swapTx.sign(YOUR_KEYPAIR);
-// send and confirm ...
+// Get swap transaction
+const swapResponse = await jupiterApi.swapPostCompressed({
+    swapRequest: {
+        userPublicKey: wallet.publicKey.toBase58(),
+        quoteResponse: quote,
+    }
+}, { compressionMode: TokenCompressionMode.DecompressInput });
+
+
+const tx = VersionedTransaction.deserialize(Buffer.from(swapResponse.swapTransaction, 'base64'));
+tx.sign([wallet]);
+// send ...
+
 ```
+
+For more code examples, see [this repo](https://github.com/Lightprotocol/example-jupiter-swap-node/blob/main).
+
 
 ## Overview
 
