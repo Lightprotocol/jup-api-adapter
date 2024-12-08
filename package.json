@@ -1,6 +1,6 @@
 {
   "name": "@lightprotocol/jup-api-adapter",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Jupiter API wrapper with support for compressed tokens",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
