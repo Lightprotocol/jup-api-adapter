@@ -230,7 +230,7 @@ describe('instruction utils', () => {
                 false,
             );
 
-            expect(instructions).toHaveLength(1);
+            expect(instructions).toHaveLength(2); // wsol unwrap
             const instruction = instructions[0];
             expect(instruction.programId.equals(TOKEN_PROGRAM_ID)).toBe(true);
         });
@@ -244,7 +244,7 @@ describe('instruction utils', () => {
                 false,
             );
 
-            expect(instructions).toHaveLength(1);
+            expect(instructions).toHaveLength(2); // wsol unwrap
             const instruction = instructions[0];
             expect(instruction.programId.equals(TOKEN_PROGRAM_ID)).toBe(true);
         });

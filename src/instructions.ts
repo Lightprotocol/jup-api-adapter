@@ -67,9 +67,8 @@ export const getCreateAtaInstructions = async (
     inputMint: PublicKey,
     outputMint: PublicKey,
     compressionMode: TokenCompressionMode,
-    skipUserAccountsRpcCalls: boolean,
+    _skipUserAccountsRpcCalls: boolean,
 ): Promise<TransactionInstruction[]> => {
-    // if (skipUserAccountsRpcCalls) return [];
 
     const instructions: TransactionInstruction[] = [];
     const [inputAta, outputAta] = await Promise.all([
@@ -173,6 +172,7 @@ const getDecompressTokenInstruction = async (
         await connection.getCompressedTokenAccountsByOwner(owner, { mint })
     ).items;
 
+    // TODO: add when testing decompressAndCompress support
     // const compressedTokenAccounts = (
     //     await connection.getCompressedAccountsByOwner(tokenProgramId)
     // ).items
@@ -224,13 +224,12 @@ export const getUpdatedComputeBudgetInstructions = (
 
     let newUnitPrice: TransactionInstruction;
     if (unitPriceInstruction) {
-        // Handle unit price - preserve BigInt
         const priceParams = ComputeBudgetInstruction.decodeSetComputeUnitPrice(
             deserializeInstruction(unitPriceInstruction),
         );
 
         newUnitPrice = ComputeBudgetProgram.setComputeUnitPrice({
-            microLamports: priceParams.microLamports, // Keep as BigInt
+            microLamports: priceParams.microLamports,
         });
     }
 
@@ -265,6 +264,16 @@ export const getCleanupInstructions = async (
                 userPublicKey,
             ),
         );
+        // unwrap SOL if needed
+        if (outputMint.equals(new PublicKey('So11111111111111111111111111111111111111112'))) {
+            instructions.push(
+                createCloseAccountInstruction(
+                    outputAta,
+                    userPublicKey, 
+                    userPublicKey,
+                ),
+            );
+        }
     } else if (compressionMode !== TokenCompressionMode.CompressOutput) {
         throw new Error(`Unknown compression mode: ${compressionMode}`);
     }
