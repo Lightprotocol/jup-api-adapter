@@ -80,5 +80,7 @@ Extends `DefaultApi` class with endpoints:
 
 
 ## Notes
-
+- This is in alpha. If you find bugs, report them on Discord or via [Telegram](https://t.me/swen_light)
 - No safeguards added. Use at your own risk.
+
+  
