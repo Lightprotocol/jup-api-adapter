@@ -176,7 +176,7 @@ export async function createJupiterApiAdapterClient(
 }
 
 export class DefaultApiAdapter extends DefaultApi {
-    private connection: Rpc;
+    connection: Rpc;
     static readonly LIGHT_LUT = LOOKUP_TABLE_ADDRESS;
 
     constructor(config: Configuration, connection: Rpc) {
