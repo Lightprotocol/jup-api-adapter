@@ -16,12 +16,11 @@ import {
     CompressSplTokenAccountParams,
     selectMinCompressedTokenAccountsForTransfer,
 } from '@lightprotocol/compressed-token';
-import { bn, parseTokenLayoutWithIdl, Rpc } from '@lightprotocol/stateless.js';
+import { bn, Rpc } from '@lightprotocol/stateless.js';
 
 const isInstanceOfInstruction = (instruction: any): boolean => {
     if (
-        !instruction?.programId ||
-        !(instruction.programId instanceof PublicKey)
+        !instruction?.programId 
     ) {
         throw new Error('Invalid program id');
     }
@@ -37,7 +36,6 @@ export const serializeInstruction = (
     instruction: TransactionInstruction,
 ): Instruction => {
     isInstanceOfInstruction(instruction);
-
     return {
         programId: instruction.programId.toBase58(),
         accounts: instruction.keys.map(key => ({
