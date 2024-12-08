@@ -1,4 +1,4 @@
-# Jupiter Compression SDK
+# Jupiter API ZK Compression Adapter
 
 A wrapper for @jup-ag/api that adds Compressed Token support.
 
@@ -59,9 +59,9 @@ Extends `DefaultApi` class with endpoints:
 - `swapPostCompressed`
 - `swapPostRawCompressed`
 
-## Constraints when using one of the compression endpoints
+## Swap params for compression endpoints
 
-- `swapMode` must be `ExactIn`
+- `swapMode` is `ExactIn`
 - `wrapAndUnwrapSol` must be `true`
 - `skipUserAccountsRpcCalls` must be `false`
 - `asLegacyTransaction` must be `false`
@@ -69,10 +69,9 @@ Extends `DefaultApi` class with endpoints:
 - `allowOptimizedWrappedSolTokenAccount` must be `false`
 - `dynamicComputeUnitLimit` must be `false`
 - `prioritizationFeeLamports` not supported yet (use `computeUnitPriceMicroLamports` instead)
-- `compressionMode` must be one of `DecompressInput`, `DecompressAndCompress`, `CompressOutput`.
 
 - Instructions
-    - mutates `ComputeBudgetInstructions` to reflect higher cu usage. (`PrioritizationFeeLamports` are not supported yet. Use `computeUnitPriceMicroLamports` instead.)
+    - mutates `ComputeBudgetInstructions` to reflect higher cu usage.
     - extends `addressLookupTableAddresses` with a lookup table for [Light Protocol](https://www.zkcompression.com/developers/protocol-addresses-and-urls#lookup-tables).
     - extends `setupInstructions` and `closeInstructions` with
         - `getCreateAtaInstructions` (tokenIn, tokenOut)
