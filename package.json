@@ -25,16 +25,16 @@
   "type": "module",
   "dependencies": {
     "@jup-ag/api": "^6.0.30",
-    "@lightprotocol/compressed-token": "^0.15.4",
-    "@lightprotocol/stateless.js": "^0.15.4",
-    "@solana/spl-token": "0.4.0",
-    "@solana/web3.js": "1.95.5",
+    "@lightprotocol/compressed-token": "link:../light-protocol/js/compressed-token",
+    "@lightprotocol/stateless.js": "link:../light-protocol/js/stateless.js",
+    "@solana/spl-token": "0.4.8",
+    "@solana/web3.js": "1.95.3",
     "bs58": "^6.0.0"
   },
   "devDependencies": {
-
     "@types/node": "^22.9.2",
     "@types/promise-retry": "^1.1.6",
+    "@types/superstruct": "^0.8.2",
     "fastestsmallesttextencoderdecoder": "^1.0.22",
     "prettier": "^3.4.1",
     "tsup": "^8.3.5",

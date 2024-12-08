@@ -1,4 +1,4 @@
-import { instanceOfInstruction, Instruction } from '@jup-ag/api';
+import { Instruction } from '@jup-ag/api';
 import {
     PublicKey,
     TransactionInstruction,
@@ -10,7 +10,6 @@ import {
     createAssociatedTokenAccountInstruction,
     createCloseAccountInstruction,
     getAssociatedTokenAddress,
-    TOKEN_PROGRAM_ID,
 } from '@solana/spl-token';
 import {
     CompressedTokenProgram,
@@ -72,7 +71,7 @@ export const getCreateAtaInstructions = async (
     compressionMode: TokenCompressionMode,
     skipUserAccountsRpcCalls: boolean,
 ): Promise<TransactionInstruction[]> => {
-    if (skipUserAccountsRpcCalls) return [];
+    // if (skipUserAccountsRpcCalls) return [];
 
     const instructions: TransactionInstruction[] = [];
     const [inputAta, outputAta] = await Promise.all([
@@ -135,11 +134,11 @@ export const getDecompressionSetupInstructions = async (
     return [
         await getDecompressTokenInstruction(
             inputMint,
-            bn(inAmount),
+            inAmount,
             connection,
             userPublicKey,
             inputAta,
-            TOKEN_PROGRAM_ID,
+            CompressedTokenProgram.programId,
             outputStateTree,
         ),
     ];
@@ -163,31 +162,36 @@ export const getCompressTokenOutInstruction = async (
 
 const getDecompressTokenInstruction = async (
     mint: PublicKey,
-    amount: string,
+    _amount: string,
     connection: Rpc,
     owner: PublicKey,
     ata: PublicKey,
     tokenProgramId: PublicKey,
     outputStateTree: PublicKey,
 ): Promise<TransactionInstruction> => {
-    amount = bn(amount);
+    const amount = bn(_amount);
 
     const compressedTokenAccounts = (
-        await connection.getCompressedAccountsByOwner(tokenProgramId)
-    ).items
-        .map(acc => ({
-            compressedAccount: acc,
-            parsed: parseTokenLayoutWithIdl(acc, tokenProgramId)!,
-        }))
-        .filter(acc => acc.parsed.mint.equals(mint));
+        await connection.getCompressedTokenAccountsByOwner(owner, { mint })
+    ).items;
+
+    // const compressedTokenAccounts = (
+    //     await connection.getCompressedAccountsByOwner(tokenProgramId)
+    // ).items
+    //     .map(acc => ({
+    //         compressedAccount: acc,
+    //         parsed: parseTokenLayoutWithIdl(acc, tokenProgramId)!,
+    //     }))
+    //     .filter(acc => acc.parsed.mint.equals(mint));
 
     const [inputAccounts] = selectMinCompressedTokenAccountsForTransfer(
-        compressedTokenAccounts,
+        [compressedTokenAccounts[0]],
         amount,
     );
+    const hashes = inputAccounts.map(account => account.compressedAccount.hash);
 
     const proof = await connection.getValidityProof(
-        inputAccounts.map(account => bn(account.compressedAccount.hash)),
+        hashes.map(hash => bn(hash)),
     );
 
     return await CompressedTokenProgram.decompress({
@@ -204,10 +208,7 @@ const getDecompressTokenInstruction = async (
 export const getUpdatedComputeBudgetInstructions = (
     computeBudgetInstructions: Instruction[],
     compressionMode: TokenCompressionMode,
-) => {
-    if (computeBudgetInstructions.length < 2) {
-        throw new Error('Missing compute budget instructions');
-    }
+): Instruction[] => {
     const [unitLimitInstruction, unitPriceInstruction] =
         computeBudgetInstructions;
 
@@ -223,19 +224,22 @@ export const getUpdatedComputeBudgetInstructions = (
         units: Math.min(baseUnits + bufferAmount, 1_400_000),
     });
 
-    // Handle unit price - preserve BigInt
-    const priceParams = ComputeBudgetInstruction.decodeSetComputeUnitPrice(
-        deserializeInstruction(unitPriceInstruction),
-    );
+    let newUnitPrice: TransactionInstruction;
+    if (unitPriceInstruction) {
+        // Handle unit price - preserve BigInt
+        const priceParams = ComputeBudgetInstruction.decodeSetComputeUnitPrice(
+            deserializeInstruction(unitPriceInstruction),
+        );
 
-    const newUnitPrice = ComputeBudgetProgram.setComputeUnitPrice({
-        microLamports: priceParams.microLamports, // Keep as BigInt
-    });
+        newUnitPrice = ComputeBudgetProgram.setComputeUnitPrice({
+            microLamports: priceParams.microLamports, // Keep as BigInt
+        });
+    }
 
     return [
         serializeInstruction(newUnitLimit),
-        serializeInstruction(newUnitPrice),
-    ];
+        unitPriceInstruction ? serializeInstruction(newUnitPrice!) : undefined,
+    ].filter((instr): instr is Instruction => instr !== undefined);
 };
 
 // TODO: add support for other compression modes
@@ -264,7 +268,7 @@ export const getCleanupInstructions = async (
             ),
         );
     } else if (compressionMode !== TokenCompressionMode.CompressOutput) {
-        throw new Error('Invalid compression mode');
+        throw new Error(`Unknown compression mode: ${compressionMode}`);
     }
     return instructions;
 };

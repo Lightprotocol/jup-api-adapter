@@ -31,7 +31,7 @@ export interface DefaultSwapPostRequestOverrides {
     asLegacyTransaction: boolean;
     allowOptimizedWrappedSolTokenAccount: boolean;
     useTokenLedger: boolean;
-    destinationTokenAccount: PublicKey | undefined;
+    destinationTokenAccount: string | undefined;
     dynamicComputeUnitLimit: boolean;
     prioritizationFeeLamports: boolean;
 }

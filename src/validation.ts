@@ -139,6 +139,8 @@ export function validateSwapPostParams(
             allowOptimizedWrappedSolTokenAccount:
                 defaultSwapPostRequest.allowOptimizedWrappedSolTokenAccount,
             asLegacyTransaction: defaultSwapPostRequest.asLegacyTransaction,
+            // until tested, we don't allow this:
+            useTokenLedger: defaultSwapPostRequest.useTokenLedger,
         },
     };
 }
