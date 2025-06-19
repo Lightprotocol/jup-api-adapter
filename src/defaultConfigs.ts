@@ -1,11 +1,8 @@
 import {
     Instruction,
-    QuoteGetRequest,
     QuoteGetSwapModeEnum,
     SwapInstructionsResponse,
-    SwapPostRequest,
 } from '@jup-ag/api';
-import { PublicKey } from '@solana/web3.js';
 
 export type CompressedSwapInstructionsResponse = Omit<
     SwapInstructionsResponse,

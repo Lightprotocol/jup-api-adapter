@@ -15,13 +15,14 @@ import {
     CompressedTokenProgram,
     CompressSplTokenAccountParams,
     selectMinCompressedTokenAccountsForTransfer,
+    TokenPoolInfo,
+    getTokenPoolInfos,
+    selectTokenPoolInfosForDecompression,
 } from '@lightprotocol/compressed-token';
-import { bn, Rpc } from '@lightprotocol/stateless.js';
+import { bn, Rpc, TreeInfo } from '@lightprotocol/stateless.js';
 
 const isInstanceOfInstruction = (instruction: any): boolean => {
-    if (
-        !instruction?.programId 
-    ) {
+    if (!instruction?.programId) {
         throw new Error('Invalid program id');
     }
     if (!Array.isArray(instruction.keys)) {
@@ -32,6 +33,7 @@ const isInstanceOfInstruction = (instruction: any): boolean => {
     }
     return true;
 };
+
 export const serializeInstruction = (
     instruction: TransactionInstruction,
 ): Instruction => {
@@ -69,7 +71,6 @@ export const getCreateAtaInstructions = async (
     compressionMode: TokenCompressionMode,
     _skipUserAccountsRpcCalls: boolean,
 ): Promise<TransactionInstruction[]> => {
-
     const instructions: TransactionInstruction[] = [];
     const [inputAta, outputAta] = await Promise.all([
         getAssociatedTokenAddress(inputMint, userPublicKey),
@@ -118,7 +119,6 @@ export const getDecompressionSetupInstructions = async (
     connection: Rpc,
     userPublicKey: PublicKey,
     compressionMode: TokenCompressionMode,
-    outputStateTree: PublicKey,
 ): Promise<TransactionInstruction[]> => {
     if (
         compressionMode !== TokenCompressionMode.DecompressInput &&
@@ -136,7 +136,6 @@ export const getDecompressionSetupInstructions = async (
             userPublicKey,
             inputAta,
             CompressedTokenProgram.programId,
-            outputStateTree,
         ),
     ];
 };
@@ -145,14 +144,16 @@ export const getCompressTokenOutInstruction = async (
     mint: PublicKey,
     owner: PublicKey,
     ata: PublicKey,
-    outputStateTree: PublicKey,
+    outputStateTreeInfo: TreeInfo,
+    tokenPoolInfo: TokenPoolInfo,
 ): Promise<TransactionInstruction> => {
     const param: CompressSplTokenAccountParams = {
         feePayer: owner,
         mint,
         tokenAccount: ata,
         authority: owner,
-        outputStateTree,
+        outputStateTreeInfo,
+        tokenPoolInfo,
     };
     return await CompressedTokenProgram.compressSplTokenAccount(param);
 };
@@ -164,7 +165,6 @@ const getDecompressTokenInstruction = async (
     owner: PublicKey,
     ata: PublicKey,
     tokenProgramId: PublicKey,
-    outputStateTree: PublicKey,
 ): Promise<TransactionInstruction> => {
     const amount = bn(_amount);
 
@@ -192,12 +192,19 @@ const getDecompressTokenInstruction = async (
         hashes.map(hash => bn(hash)),
     );
 
+    // Get token pool infos for decompression
+    const tokenPoolInfos = await getTokenPoolInfos(connection, mint);
+    const selectedTokenPoolInfos = selectTokenPoolInfosForDecompression(
+        tokenPoolInfos,
+        amount,
+    );
+
     return await CompressedTokenProgram.decompress({
         payer: owner,
         inputCompressedTokenAccounts: inputAccounts,
         toAddress: ata,
         amount,
-        outputStateTree,
+        tokenPoolInfos: selectedTokenPoolInfos,
         recentInputStateRootIndices: proof.rootIndices,
         recentValidityProof: proof.compressedProof,
     });
@@ -265,11 +272,15 @@ export const getCleanupInstructions = async (
             ),
         );
         // unwrap SOL if needed
-        if (outputMint.equals(new PublicKey('So11111111111111111111111111111111111111112'))) {
+        if (
+            outputMint.equals(
+                new PublicKey('So11111111111111111111111111111111111111112'),
+            )
+        ) {
             instructions.push(
                 createCloseAccountInstruction(
                     outputAta,
-                    userPublicKey, 
+                    userPublicKey,
                     userPublicKey,
                 ),
             );
