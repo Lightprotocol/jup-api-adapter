@@ -132,8 +132,6 @@ async function processSwapInstructionsPostCompressed(
                 connection,
                 userPublicKey,
                 compressionParameters.compressionMode,
-                compressionParameters.outputStateTree ??
-                    defaultTestStateTreeAccounts().merkleTree,
             ),
             getCleanupInstructions(
                 compressionParameters.compressionMode,
